@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod/v4";
-import { addVibe, getVibes, getStats } from "@/lib/vibe-store";
+import { addVibe, getVibes, getStats, getActiveCount, trackVisitor } from "@/lib/vibe-store";
+import { isRateLimited } from "@/lib/rate-limit";
 import type { Vibe } from "@/types/vibe";
 
 const vibeSchema = z.object({
@@ -13,6 +14,15 @@ const vibeSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
+    const ip = request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip") || "unknown";
+
+    if (isRateLimited(ip)) {
+      return NextResponse.json(
+        { error: "Slow down! You can drop a vibe every 30 seconds." },
+        { status: 429 },
+      );
+    }
+
     const body: unknown = await request.json();
     const parsed = vibeSchema.parse(body);
 
@@ -28,9 +38,6 @@ export async function POST(request: NextRequest) {
 
     addVibe(vibe);
 
-    // In production, broadcast via Pusher here:
-    // await pusher.trigger("vibes", "new-vibe", vibe);
-
     return NextResponse.json({ success: true, vibe });
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -40,11 +47,15 @@ export async function POST(request: NextRequest) {
   }
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const ip = request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip") || "unknown";
+    trackVisitor(ip);
+
     const vibes = getVibes();
     const stats = getStats();
-    return NextResponse.json({ vibes, stats });
+    const activeVisitors = getActiveCount();
+    return NextResponse.json({ vibes, stats, activeVisitors });
   } catch {
     return NextResponse.json({ error: "Failed to fetch vibes" }, { status: 500 });
   }

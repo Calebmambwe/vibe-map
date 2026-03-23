@@ -6,14 +6,16 @@ import type { Vibe, VibeStats, MoodType } from "@/types/vibe";
 interface UseVibesReturn {
   vibes: Vibe[];
   stats: VibeStats | null;
+  activeVisitors: number;
   submitting: boolean;
-  submitVibe: (mood: MoodType, lat: number, lng: number) => Promise<Vibe | null>;
+  submitVibe: (mood: MoodType, lat: number, lng: number, city?: string, country?: string) => Promise<Vibe | null>;
   refreshVibes: () => Promise<void>;
 }
 
 export function useVibes(): UseVibesReturn {
   const [vibes, setVibes] = useState<Vibe[]>([]);
   const [stats, setStats] = useState<VibeStats | null>(null);
+  const [activeVisitors, setActiveVisitors] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -21,9 +23,10 @@ export function useVibes(): UseVibesReturn {
     try {
       const res = await fetch("/api/vibe");
       if (!res.ok) return;
-      const data = (await res.json()) as { vibes: Vibe[]; stats: VibeStats };
+      const data = (await res.json()) as { vibes: Vibe[]; stats: VibeStats; activeVisitors: number };
       setVibes(data.vibes);
       setStats(data.stats);
+      setActiveVisitors(data.activeVisitors || 0);
     } catch {
       // Silently fail on network errors during polling
     }
@@ -31,7 +34,6 @@ export function useVibes(): UseVibesReturn {
 
   useEffect(() => {
     refreshVibes();
-    // Poll every 5 seconds for new vibes
     intervalRef.current = setInterval(refreshVibes, 5000);
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
@@ -39,18 +41,22 @@ export function useVibes(): UseVibesReturn {
   }, [refreshVibes]);
 
   const submitVibe = useCallback(
-    async (mood: MoodType, lat: number, lng: number): Promise<Vibe | null> => {
+    async (mood: MoodType, lat: number, lng: number, city?: string, country?: string): Promise<Vibe | null> => {
       setSubmitting(true);
       try {
         const res = await fetch("/api/vibe", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ mood, lat, lng }),
+          body: JSON.stringify({ mood, lat, lng, city, country }),
         });
-        if (!res.ok) return null;
+        if (!res.ok) {
+          const errorData = (await res.json()) as { error?: string };
+          if (res.status === 429) {
+            alert(errorData.error || "Too many vibes! Wait a moment.");
+          }
+          return null;
+        }
         const data = (await res.json()) as { vibe: Vibe };
-
-        // Optimistically add to local state
         setVibes((prev) => [data.vibe, ...prev]);
         await refreshVibes();
         return data.vibe;
@@ -63,5 +69,5 @@ export function useVibes(): UseVibesReturn {
     [refreshVibes],
   );
 
-  return { vibes, stats, submitting, submitVibe, refreshVibes };
+  return { vibes, stats, activeVisitors, submitting, submitVibe, refreshVibes };
 }
