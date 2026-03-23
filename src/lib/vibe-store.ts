@@ -56,6 +56,27 @@ export function getVibes(): Vibe[] {
   return [...vibes];
 }
 
+// Active visitor tracking
+const activeVisitors = new Map<string, number>();
+const VISITOR_TTL = 30_000; // 30 seconds
+
+export function trackVisitor(ip: string): void {
+  activeVisitors.set(ip, Date.now());
+}
+
+export function getActiveCount(): number {
+  const now = Date.now();
+  let count = 0;
+  for (const [key, lastSeen] of activeVisitors) {
+    if (now - lastSeen > VISITOR_TTL) {
+      activeVisitors.delete(key);
+    } else {
+      count++;
+    }
+  }
+  return Math.max(count, 1); // At least 1 (the current user)
+}
+
 export function getStats(): VibeStats {
   const breakdown: Record<MoodType, number> = {
     happy: 0,
