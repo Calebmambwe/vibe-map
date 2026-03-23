@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useRef, Suspense } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Users } from "lucide-react";
+import { Users, Timer } from "lucide-react";
 import { VibeGlobe } from "@/components/globe/VibeGlobe";
 import { GlobeLoader } from "@/components/globe/GlobeLoader";
 import { MoodSelector } from "@/components/mood/MoodSelector";
@@ -10,8 +10,12 @@ import { VibeStatsPanel } from "@/components/stats/VibeStats";
 import { ShareCard } from "@/components/shared/ShareCard";
 import { VibeDropButton } from "@/components/shared/VibeDropButton";
 import { ParticleBurst } from "@/components/shared/ParticleBurst";
+import { TimelapsePlayer } from "@/components/shared/TimelapsePlayer";
+import { ThemeToggle } from "@/components/shared/ThemeToggle";
+import { MilestoneToast } from "@/components/shared/MilestoneToast";
 import { useVibes } from "@/hooks/useVibes";
 import { useGeolocation } from "@/hooks/useGeolocation";
+import { useVibeStreak } from "@/hooks/useVibeStreak";
 import { getMood } from "@/types/vibe";
 import { playVibeDropSound, playSelectSound } from "@/lib/sounds";
 import { fadeInUp, slideInRight } from "@/lib/animations";
@@ -23,9 +27,12 @@ export default function HomePage() {
   const [globeReady, setGlobeReady] = useState(false);
   const [showShare, setShowShare] = useState<Vibe | null>(null);
   const [showParticles, setShowParticles] = useState(false);
+  const [showTimelapse, setShowTimelapse] = useState(false);
+  const [timelapseVibes, setTimelapseVibes] = useState<Vibe[] | null>(null);
   const globeMethodsRef = useRef<GlobeMethods | null>(null);
   const { vibes, stats, activeVisitors, submitting, submitVibe } = useVibes();
   const { position, loading: geoLoading, requestLocation } = useGeolocation();
+  const { streak, recordVibe } = useVibeStreak();
 
   const handleMoodSelect = useCallback(
     (mood: MoodType) => {
@@ -51,8 +58,8 @@ export default function HomePage() {
     if (vibe) {
       playVibeDropSound();
       setShowParticles(true);
+      recordVibe();
 
-      // Camera fly-to the dropped vibe location
       if (globeMethodsRef.current) {
         globeMethodsRef.current.pointOfView(
           { lat: vibe.lat, lng: vibe.lng, altitude: 1.8 },
@@ -60,30 +67,42 @@ export default function HomePage() {
         );
       }
 
-      // Show share card after brief delay for the animation
       setTimeout(() => {
         setShowShare(vibe);
         setSelectedMood(null);
       }, 800);
     }
-  }, [selectedMood, position, submitVibe]);
+  }, [selectedMood, position, submitVibe, recordVibe]);
 
   const handleGlobeReady = useCallback((methods: GlobeMethods) => {
     globeMethodsRef.current = methods;
     setGlobeReady(true);
   }, []);
 
+  const handleTimelapseVibes = useCallback((active: Vibe[]) => {
+    setTimelapseVibes(active);
+  }, []);
+
+  const handleCloseTimelapse = useCallback(() => {
+    setShowTimelapse(false);
+    setTimelapseVibes(null);
+  }, []);
+
   const activeColor = selectedMood ? getMood(selectedMood).color : "#6B73FF";
+  const displayVibes = showTimelapse && timelapseVibes ? timelapseVibes : vibes;
 
   return (
     <div className="relative flex min-h-screen flex-col bg-gray-950 text-white lg:flex-row">
+      {/* Milestone Toast */}
+      <MilestoneToast vibeCount={stats?.total ?? 0} city={position?.city} />
+
       {/* Globe Section */}
       <div className="relative flex-1">
         <Suspense fallback={<GlobeLoader />}>
           {!globeReady && <GlobeLoader />}
           <div className={globeReady ? "opacity-100" : "opacity-0"}>
             <div className="h-[60vh] lg:h-screen">
-              <VibeGlobe vibes={vibes} onGlobeReady={handleGlobeReady} />
+              <VibeGlobe vibes={displayVibes} onGlobeReady={handleGlobeReady} />
             </div>
           </div>
         </Suspense>
@@ -122,6 +141,15 @@ export default function HomePage() {
             </span>
           </motion.div>
         )}
+
+        {/* Timelapse Player */}
+        {showTimelapse && (
+          <TimelapsePlayer
+            vibes={vibes}
+            onActiveVibesChange={handleTimelapseVibes}
+            onClose={handleCloseTimelapse}
+          />
+        )}
       </div>
 
       {/* Sidebar / Bottom Panel */}
@@ -131,17 +159,33 @@ export default function HomePage() {
         animate="visible"
         className="flex w-full flex-col gap-6 border-t border-white/5 bg-gray-950/80 p-6 backdrop-blur-xl lg:w-96 lg:border-l lg:border-t-0"
       >
-        {/* Mood Selector */}
-        <div>
-          <h2 className="mb-3 text-sm font-medium uppercase tracking-wider text-white/40">
+        {/* Header with theme toggle + timelapse */}
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-medium uppercase tracking-wider text-white/40">
             How are you feeling?
           </h2>
-          <MoodSelector
-            onSelect={handleMoodSelect}
-            selectedMood={selectedMood}
-            disabled={submitting}
-          />
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowTimelapse((s) => !s)}
+              className={`flex h-8 w-8 items-center justify-center rounded-lg transition-colors ${
+                showTimelapse
+                  ? "bg-indigo-500/20 text-indigo-400"
+                  : "bg-white/5 text-white/50 hover:bg-white/10 hover:text-white"
+              }`}
+              aria-label="Toggle timelapse"
+            >
+              <Timer size={16} />
+            </button>
+            <ThemeToggle />
+          </div>
         </div>
+
+        {/* Mood Selector */}
+        <MoodSelector
+          onSelect={handleMoodSelect}
+          selectedMood={selectedMood}
+          disabled={submitting}
+        />
 
         {/* Drop Button */}
         <div className="relative flex justify-center">
@@ -157,17 +201,24 @@ export default function HomePage() {
           />
         </div>
 
-        {/* Location Status */}
-        {geoLoading && (
-          <p className="text-center text-xs text-white/30">Getting your location...</p>
-        )}
-        {position && !geoLoading && (
-          <p className="text-center text-xs text-white/30">
-            {position.city && position.country
-              ? `${position.city}, ${position.country}`
-              : `${position.lat.toFixed(1)}, ${position.lng.toFixed(1)}`}
-          </p>
-        )}
+        {/* Location + Streak Status */}
+        <div className="flex flex-col items-center gap-1">
+          {geoLoading && (
+            <p className="text-xs text-white/30">Getting your location...</p>
+          )}
+          {position && !geoLoading && (
+            <p className="text-xs text-white/30">
+              {position.city && position.country
+                ? `${position.city}, ${position.country}`
+                : `${position.lat.toFixed(1)}, ${position.lng.toFixed(1)}`}
+            </p>
+          )}
+          {streak > 1 && (
+            <p className="text-xs text-amber-400/70">
+              {streak} day streak
+            </p>
+          )}
+        </div>
 
         {/* Divider */}
         <div className="h-px bg-white/5" />

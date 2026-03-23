@@ -16,17 +16,34 @@ interface UseGeolocationReturn {
   requestLocation: () => void;
 }
 
+// Client-side cache to avoid hammering Nominatim (1 req/sec limit)
+const geocodeCache = new Map<string, { city: string; country: string }>();
+
+function cacheKey(lat: number, lng: number): string {
+  return `${lat.toFixed(2)},${lng.toFixed(2)}`;
+}
+
 async function reverseGeocode(lat: number, lng: number): Promise<{ city: string; country: string }> {
+  const key = cacheKey(lat, lng);
+  const cached = geocodeCache.get(key);
+  if (cached) return cached;
+
   try {
     const res = await fetch(
-      `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=en`,
+      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&zoom=10`,
+      { headers: { "User-Agent": "VibeMap/1.0 (https://github.com/Calebmambwe/vibe-map)" } },
     );
     if (!res.ok) return { city: "Unknown", country: "Earth" };
-    const data = (await res.json()) as { city?: string; locality?: string; countryName?: string; countryCode?: string };
-    return {
-      city: data.city || data.locality || "Unknown",
-      country: data.countryCode || data.countryName || "Earth",
+    const data = (await res.json()) as {
+      address?: { city?: string; town?: string; village?: string; county?: string; country?: string; country_code?: string };
     };
+    const addr = data.address;
+    const result = {
+      city: addr?.city || addr?.town || addr?.village || addr?.county || "Unknown",
+      country: addr?.country_code?.toUpperCase() || addr?.country || "Earth",
+    };
+    geocodeCache.set(key, result);
+    return result;
   } catch {
     return { city: "Unknown", country: "Earth" };
   }

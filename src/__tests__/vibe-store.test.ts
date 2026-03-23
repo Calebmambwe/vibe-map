@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect } from "vitest";
 
 // Re-import to get fresh module state per test file
 // Note: vibe-store has module-level state with seeds, so we test additive behavior
