@@ -100,7 +100,7 @@ export default function HomePage() {
       <div className="relative flex-1">
         <Suspense fallback={<GlobeLoader />}>
           {!globeReady && <GlobeLoader />}
-          <div className={globeReady ? "opacity-100" : "opacity-0"}>
+          <div className={globeReady ? "opacity-100 transition-opacity duration-500" : "pointer-events-none absolute inset-0 opacity-0"}>
             <div className="h-[60vh] lg:h-screen">
               <VibeGlobe vibes={displayVibes} onGlobeReady={handleGlobeReady} />
             </div>
@@ -192,6 +192,7 @@ export default function HomePage() {
           <VibeDropButton
             onClick={handleDrop}
             disabled={!selectedMood || !position || submitting || geoLoading}
+            submitting={submitting}
             color={activeColor}
           />
           <ParticleBurst

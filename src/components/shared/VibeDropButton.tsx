@@ -6,10 +6,11 @@ import { Sparkles } from "lucide-react";
 interface VibeDropButtonProps {
   onClick: () => void;
   disabled: boolean;
+  submitting?: boolean;
   color?: string;
 }
 
-export function VibeDropButton({ onClick, disabled, color = "#6B73FF" }: VibeDropButtonProps) {
+export function VibeDropButton({ onClick, disabled, submitting = false, color = "#6B73FF" }: VibeDropButtonProps) {
   return (
     <motion.button
       whileHover={{ scale: 1.05 }}
@@ -27,7 +28,7 @@ export function VibeDropButton({ onClick, disabled, color = "#6B73FF" }: VibeDro
       }}
     >
       <Sparkles size={22} />
-      {disabled ? "Dropping..." : "Drop Your Vibe"}
+      {submitting ? "Dropping..." : "Drop Your Vibe"}
 
       {/* Animated glow ring */}
       {!disabled && (

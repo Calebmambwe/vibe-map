@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useMemo } from "react";
+import { useEffect, useRef, useState, useMemo, useCallback } from "react";
 import dynamic from "next/dynamic";
 import { Flame, MapPin } from "lucide-react";
 import type { GlobeMethods } from "react-globe.gl";
@@ -34,7 +34,7 @@ export function VibeGlobe({ vibes, onGlobeReady }: VibeGlobeProps) {
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
-  useEffect(() => {
+  const handleGlobeReady = useCallback(() => {
     const globe = globeRef.current;
     if (!globe) return;
 
@@ -125,6 +125,7 @@ export function VibeGlobe({ vibes, onGlobeReady }: VibeGlobeProps) {
         // Performance
         animateIn={true}
         waitForGlobeReady={true}
+        onGlobeReady={handleGlobeReady}
       />
 
       {/* View mode toggle */}
