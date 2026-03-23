@@ -1,0 +1,21 @@
+{
+  "name": "VibeMap",
+  "short_name": "VibeMap",
+  "description": "Drop your vibe on the globe. See how the world feels right now.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#030014",
+  "theme_color": "#6B73FF",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
